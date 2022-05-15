@@ -24,19 +24,19 @@ protected:
 public:
     void set_arguments(const int argnum, const char* const * args);
 protected:
-    BCP_single_environment(int my_id) :
-	_argnum(0), _arglist(NULL), _my_id(my_id) {}
+    BCP_single_environment(int my_id, std::map<int, BCP_process*> * processes) :
+	_argnum(0), _arglist(NULL), _my_id(my_id), _processes(processes) {}
 protected:
     int _my_id;
-    static std::map<int, BCP_process*> processes;
+    std::map<int, BCP_process*> * _processes;
 public:
-    BCP_single_environment() : _argnum(0), _arglist(NULL), _my_id() {}
+    BCP_single_environment() : _argnum(0), _arglist(NULL), _my_id(), _processes(new std::map<int, BCP_process*>()) {}
     virtual ~BCP_single_environment();
-   
+
     int register_process(USER_initialize* user_init);
     int parent_process();
 
-    bool alive(const int pid); 
+    bool alive(const int pid);
     const int* alive(int num, const int* pids);
 
     void send(const int target, const BCP_message_tag tag);

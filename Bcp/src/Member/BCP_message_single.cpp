@@ -31,7 +31,6 @@
 
 #include "BCP_tm.hpp"
 
-std::map<int, BCP_process*> BCP_single_environment::processes;
 
 //#############################################################################
 
@@ -58,6 +57,7 @@ BCP_single_environment::~BCP_single_environment()
 	free(_arglist[i]);
     }
     delete[] _arglist;
+		delete _processes;
 }
 
 //-----------------------------------------------------------------------------
@@ -78,7 +78,7 @@ BCP_single_environment::register_process(USER_initialize* user_init)
     //     int _cp_id(4);
     //     int _vp_id(5);
     BCP_tm_prob* _tm_prob = new BCP_tm_prob();
-    processes[0] = _tm_prob;
+    (*_processes)[0] = _tm_prob;
 
     _tm_prob->par.set_entry(BCP_tm_par::MessagePassingIsSerial,true);
     _tm_prob->slave_pars.lp.set_entry(BCP_lp_par::MessagePassingIsSerial,true);
@@ -89,7 +89,7 @@ BCP_single_environment::register_process(USER_initialize* user_init)
       _tm_prob->slave_pars.vp.set_entry(BCP_vp_par::MessagePassingIsSerial,true);
     */
     BCP_tm_parse_command_line(*_tm_prob, _argnum, _arglist);
-    
+
     _tm_prob->msg_env = this;
     _tm_prob->start_time = CoinWallclockTime();
     _my_id = _tm_id;
@@ -99,7 +99,7 @@ BCP_single_environment::register_process(USER_initialize* user_init)
     // wants to do. Wreak havoc in p if (s)he wants.
     // BUT: once this function returns, the processes designated to be part of
     // BCP must be idle and waiting for a message. See the
-    // BCP_slave_process_stub() function below. 
+    // BCP_slave_process_stub() function below.
     _tm_prob->user = user_init->tm_init(*_tm_prob, _argnum, _arglist);
     _tm_prob->user->setTmProblemPointer(_tm_prob);
     _tm_prob->packer = user_init->packer_init(_tm_prob->user);
@@ -144,8 +144,8 @@ BCP_single_environment::register_process(USER_initialize* user_init)
     //=========================================================================
     // LP
     BCP_lp_prob* _lp_prob = new BCP_lp_prob(_lp_id, _tm_id);
-    processes[_lp_id] = _lp_prob;
-    _lp_prob->msg_env = new BCP_single_environment(_lp_id);
+    (*_processes)[_lp_id] = _lp_prob;
+    _lp_prob->msg_env = new BCP_single_environment(_lp_id, _processes);
     _tm_prob->lp_procs.push_back(_lp_id);
     _tm_prob->lp_scheduler.add_free_ids(_tm_prob->lp_procs.size(),
 					&_tm_prob->lp_procs[0]);
@@ -170,8 +170,8 @@ BCP_single_environment::register_process(USER_initialize* user_init)
 #if ! defined(BCP_ONLY_LP_PROCESS_HANDLING_WORKS)
     if (_tm_prob->param(BCP_tm_par::CgProcessNum) > 0) {
 	_cg_prob = new BCP_cg_prob(_cg_id, _tm_id);
-	processes[_cg_id] = _cg_prob;
-	_cg_prob->msg_env = new BCP_single_environment(_cg_id);
+	(*_processes)[_cg_id] = _cg_prob;
+	_cg_prob->msg_env = new BCP_single_environment(_cg_id, _processes);
 	_tm_prob->slaves.cg = new BCP_proc_array;
 	_tm_prob->slaves.cg->add_proc(_cg_id);
 	_tm_prob->slaves.all->add_proc(_cg_id);
@@ -180,8 +180,8 @@ BCP_single_environment::register_process(USER_initialize* user_init)
     // VG
     if (_tm_prob->param(BCP_tm_par::VgProcessNum) > 0) {
 	_vg_prob = new BCP_vg_prob(_vg_id, _tm_id);
-	processes[_vg_id] = _vg_prob;
-	_vg_prob->msg_env = new BCP_single_environment(_vg_id);
+	(*_processes)[_vg_id] = _vg_prob;
+	_vg_prob->msg_env = new BCP_single_environment(_vg_id, _processes);
 	_tm_prob->slaves.vg = new BCP_proc_array;
 	_tm_prob->slaves.vg->add_proc(_vg_id);
 	_tm_prob->slaves.all->add_proc(_vg_id);
@@ -190,8 +190,8 @@ BCP_single_environment::register_process(USER_initialize* user_init)
     // CP
     if (_tm_prob->param(BCP_tm_par::CpProcessNum) > 0) {
 	_cp_prob = new BCP_cp_prob(_cp_id, _tm_id);
-	processes[_cp_id] = _cp_prob;
-	_cp_prob->msg_env = new BCP_single_environment(_cp_id);
+	(*_processes)[_cp_id] = _cp_prob;
+	_cp_prob->msg_env = new BCP_single_environment(_cp_id, _processes);
 	_tm_prob->slaves.cp = new BCP_proc_array;
 	_tm_prob->slaves.cp->add_proc(_cp_id);
 	_tm_prob->slaves.all->add_proc(_cp_id);
@@ -200,8 +200,8 @@ BCP_single_environment::register_process(USER_initialize* user_init)
     // VP
     if (_tm_prob->param(BCP_tm_par::VpProcessNum) > 0) {
 	_vp_prob = new BCP_vp_prob(_vp_id, _tm_id);
-	processes[_vp_id] = _vp_prob;
-	_vp_prob->msg_env = new BCP_single_environment(_vp_id);
+	(*_processes)[_vp_id] = _vp_prob;
+	_vp_prob->msg_env = new BCP_single_environment(_vp_id, _processes);
 	_tm_prob->slaves.vp = new BCP_proc_array;
 	_tm_prob->slaves.vp->add_proc(_vp_id);
 	_tm_prob->slaves.all->add_proc(_vp_id);
@@ -297,7 +297,7 @@ BCP_single_environment::register_process(USER_initialize* user_init)
 	    // some statistics about the previous phase (if there was one) and
 	    // do some other stuff, too.
 	    BCP_tm_tasks_before_new_phase(*_tm_prob);
-	    // do one phase 
+	    // do one phase
 	    // While there are nodes waiting to be processed (or being
 	    // processed) we don't go to the next phase
 	    something_died = false;
@@ -334,12 +334,12 @@ BCP_single_environment::register_process(USER_initialize* user_init)
     if (_vg_prob) {
 	delete _vg_prob;
     }
-      
+
     //    if (_cp_prob)
     //       delete _cp_prob;
     //    if (_vp_prob)
     //       delete _vp_prob;
-      
+
     delete _tm_prob;
 
     return 0; //fake, just to quiet the compiler
@@ -360,7 +360,7 @@ BCP_single_environment::alive(const int pid)
     return true;
 }
 
-const int* 
+const int*
 BCP_single_environment::alive(int num, const int* pids)
 {
   return NULL;
@@ -372,7 +372,7 @@ void
 BCP_single_environment::send(const int target,
 			     const BCP_message_tag tag)
 {
-    BCP_process* target_process = processes[target];
+    BCP_process* target_process = _processes->at(target);
     BCP_buffer& target_buf = target_process->get_message_buffer();
     target_buf.clear();
     target_buf._sender = _my_id;
@@ -385,14 +385,14 @@ BCP_single_environment::send(const int target,
 			     const BCP_message_tag tag,
 			     const BCP_buffer& buf)
 {
-    BCP_process* target_process = processes[target];
+    BCP_process* target_process = _processes->at(target);
     BCP_buffer& target_buf = target_process->get_message_buffer();
     target_buf = buf;
     target_buf._sender = _my_id;
     target_buf._msgtag = tag;
     target_process->process_message();
 }
-   
+
 //-----------------------------------------------------------------------------
 
 void
