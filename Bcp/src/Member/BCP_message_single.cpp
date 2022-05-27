@@ -57,7 +57,6 @@ BCP_single_environment::~BCP_single_environment()
 	free(_arglist[i]);
     }
     delete[] _arglist;
-		delete _processes;
 }
 
 //-----------------------------------------------------------------------------
